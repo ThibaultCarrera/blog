@@ -1,94 +1,95 @@
 <?php
 
-    const ERROR_REQUIRED = 'Ce champ est requis';
-    const ERROR_TITLE_TOO_SHORT = 'Le titre doit faire au moins 5 caractères';
-    const ERROR_CONTENT_TOO_SHORT = 'Le contenu est trop court';
-    const ERROR_IMAGE_URL = 'L\'URL de l\'image n\'est pas valide';
-    $filename = __DIR__ . '/data/articles.json';
-    $errors = [
-        'title' => '',
-        'image' => '',
-        'category' => '',
-        'content' => ''
-    ];
-    $category = '';
 
-    if (file_exists($filename)) {
-        $articles = json_decode(file_get_contents($filename), true) ?? [];
+$articleDB = require_once __DIR__ . './database/model/articleDB.php';
+
+
+const ERROR_REQUIRED = 'Ce champ est requis';
+const ERROR_TITLE_TOO_SHORT = 'Le titre doit faire au moins 5 caractères';
+const ERROR_CONTENT_TOO_SHORT = 'Le contenu est trop court';
+const ERROR_IMAGE_URL = 'L\'URL de l\'image n\'est pas valide';
+$filename = __DIR__ . '/data/articles.json';
+$errors = [
+    'title' => '',
+    'image' => '',
+    'category' => '',
+    'content' => ''
+];
+$category = '';
+
+
+
+
+$_GET = filter_input_array(INPUT_GET, FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+$id = $_GET['id'] ?? '';
+
+if ($id) {
+    $article = $articleDB->fetchOne($id);
+    $title = $article['title'];
+    $image = $article['image'];
+    $category = $article['category'];
+    $content = $article['content'];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $_POST = filter_input_array(INPUT_POST, [
+        'title' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
+        'image' => FILTER_SANITIZE_URL,
+        'category' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
+        'content' => [
+            'filter' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
+            'flags' => FILTER_FLAG_NO_ENCODE_QUOTES
+        ]
+    ]);
+
+    $title = $_POST['title'] ?? '';
+    $image = $_POST['image'] ?? '';
+    $category = $_POST['category'] ?? '';
+    $content = $_POST['content'] ?? '';
+
+
+    if (!$title) {
+        $errors['title'] = ERROR_REQUIRED;
+    } elseif (mb_strlen($title) < 5) {
+        $errors['title'] = ERROR_TITLE_TOO_SHORT;
+    }
+
+    if (!$image) {
+        $errors['image'] = ERROR_REQUIRED;
+    } elseif (!filter_var($image, FILTER_VALIDATE_URL)) {
+        $errors['image'] = ERROR_IMAGE_URL;
+    }
+
+    if (!$category) {
+        $errors['category'] = ERROR_REQUIRED;
+    }
+
+    if (!$content) {
+        $errors['content'] = ERROR_REQUIRED;
+    } elseif (mb_strlen($content) < 50) {
+        $errors['content'] = ERROR_CONTENT_TOO_SHORT;
     }
 
 
-    $_GET = filter_input_array(INPUT_GET, FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-    $id = $_GET['id'] ?? '';
+    if (empty(array_filter($errors, fn ($e) => $e !== ''))) {
+        if ($id) {
+            $article['title'] = $title;
+            $article['image'] = $image;
+            $article['category'] = $category;
+            $article['content'] = $content;
+            $articleDB->updateOne($article);
+        } else {
+            $articleDB->createOne([
+                'title' => $title,
+                'image' => $image,
+                'category' => $category,
+                'content' => $content
+            ]);
+        }
 
-    if ($id) {
-        $articleIndex = array_search($id, array_column($articles, 'id'));
-        $article = $articles[$articleIndex];
-        $title = $article['title'];
-        $image = $article['image'];
-        $category = $article['category'];
-        $content = $article['content'];
+        header('Location: /');
     }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $_POST = filter_input_array(INPUT_POST, [
-            'title' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
-            'image' => FILTER_SANITIZE_URL,
-            'category' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
-            'content' => [
-                'filter' => FILTER_SANITIZE_FULL_SPECIAL_CHARS,
-                'flags' => FILTER_FLAG_NO_ENCODE_QUOTES
-            ]
-        ]);
-
-        $title = $_POST['title'] ?? '';
-        $image = $_POST['image'] ?? '';
-        $category = $_POST['category'] ?? '';
-        $content = $_POST['content'] ?? '';
-
-
-        if (!$title) {
-            $errors['title'] = ERROR_REQUIRED;
-        } elseif (mb_strlen($title) < 5) {
-            $errors['title'] = ERROR_TITLE_TOO_SHORT;
-        }
-
-        if (!$image) {
-            $errors['image'] = ERROR_REQUIRED;
-        } elseif (!filter_var($image, FILTER_VALIDATE_URL)) {
-            $errors['image'] = ERROR_IMAGE_URL;
-        }
-
-        if (!$category) {
-            $errors['category'] = ERROR_REQUIRED;
-        }
-
-        if (!$content) {
-            $errors['content'] = ERROR_REQUIRED;
-        } elseif (mb_strlen($content) < 50) {
-            $errors['content'] = ERROR_CONTENT_TOO_SHORT;
-        }
-
-
-        if (empty(array_filter($errors, fn ($e) => $e !== ''))) {
-            if ($id) {
-                $articles[$articleIndex]['title'] = $title;
-                $articles[$articleIndex]['image'] = $image;
-                $articles[$articleIndex]['category'] = $category;
-                $articles[$articleIndex]['content'] = $content;
-            } else {
-                $articles = [...$articles, [
-                    'title' => $title,
-                    'image' => $image,
-                    'category' => $category,
-                    'content' => $content,
-                    'id' => time()
-                ]];
-            }
-            file_put_contents($filename, json_encode($articles));
-            header('Location: /');
-        }
-    }
+}
 
 
 
@@ -97,7 +98,7 @@
 
 
 
-    ?>
+?>
 
 
 
